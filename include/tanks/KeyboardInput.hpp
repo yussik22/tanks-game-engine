@@ -4,7 +4,8 @@
 #include <string>
 #include "tanks/Types.hpp"
 
-namespace tanks {
+namespace tanks
+{
 
 class KeyboardInput
 {

@@ -3,7 +3,8 @@
 #include <cstdint>
 #include "tanks/Types.hpp"
 
-namespace tanks {
+namespace tanks
+{
 
 enum class ObjectKind
 {
@@ -18,37 +19,44 @@ enum class ObjectKind
 class GameObject
 {
 public:
-    GameObject(const GridPosition& position) {
-        this->position = position;
+    virtual ~GameObject()
+    {
     }
-
-    virtual ~GameObject() {}
 
     virtual ObjectKind getKind() const = 0;
 
-    std::uint32_t getId() const {
+    std::uint32_t getId() const
+    {
         return id;
     }
 
-    GridPosition getPosition() const {
+    GridPosition getPosition() const
+    {
         return position;
     }
 
-    bool isActive() const {
+    bool isActive() const
+    {
         return active;
     }
 
-    void deactivate() {
+    void deactivate()
+    {
         active = false;
     }
 
 protected:
+    GameObject()
+    {
+    }
+
     GridPosition position;
 
 private:
     friend class GameMap;
 
-    void setId(std::uint32_t id) {
+    void setId(std::uint32_t id)
+    {
         this->id = id;
     }
 

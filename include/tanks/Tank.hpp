@@ -5,7 +5,8 @@
 #include "tanks/Damageable.hpp"
 #include "tanks/GameObject.hpp"
 
-namespace tanks {
+namespace tanks
+{
 
 class CollisionSystem;
 class GameMap;
@@ -19,6 +20,7 @@ public:
     void turn(Direction direction);
     bool tryMove(const GridPosition& next, const GameMap& map,
                  const CollisionSystem& collisions);
+    bool canFire() const;
     std::unique_ptr<Projectile> fire();
     void updateCooldown(float dt);
     void takeDamage(int amount) override;

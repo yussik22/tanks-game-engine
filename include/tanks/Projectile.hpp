@@ -3,7 +3,8 @@
 #include <cstdint>
 #include "tanks/GameObject.hpp"
 
-namespace tanks {
+namespace tanks
+{
 
 class Projectile : public GameObject
 {

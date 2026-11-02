@@ -4,14 +4,19 @@
 #include <vector>
 #include "tanks/GameObject.hpp"
 
-namespace tanks {
+namespace tanks
+{
 
 class Layer
 {
 public:
-    virtual ~Layer() {}
+    virtual ~Layer()
+    {
+    }
 
     GameObject* add(std::unique_ptr<GameObject> object);
+    std::vector<GameObject*> getActiveObjects();
+    std::vector<const GameObject*> getActiveObjects() const;
     std::vector<GameObject*> getObjectsAt(const GridPosition& position);
     std::vector<const GameObject*> getObjectsAt(const GridPosition& position) const;
     void removeInactive();

@@ -2,7 +2,8 @@
 
 #include "tanks/GameObject.hpp"
 
-namespace tanks {
+namespace tanks
+{
 
 class FloorTile : public GameObject
 {

@@ -2,7 +2,8 @@
 
 #include "tanks/Types.hpp"
 
-namespace tanks {
+namespace tanks
+{
 
 class BotTank;
 class CollisionSystem;

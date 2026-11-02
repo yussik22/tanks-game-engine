@@ -3,7 +3,8 @@
 #include "tanks/Damageable.hpp"
 #include "tanks/GameObject.hpp"
 
-namespace tanks {
+namespace tanks
+{
 
 class Wall : public GameObject, public Damageable
 {

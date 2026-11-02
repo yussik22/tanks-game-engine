@@ -1,11 +1,14 @@
 #pragma once
 
-namespace tanks {
+namespace tanks
+{
 
 class Damageable
 {
 public:
-    virtual ~Damageable() {}
+    virtual ~Damageable()
+    {
+    }
 
     virtual void takeDamage(int amount) = 0;
     virtual bool isDestroyed() const = 0;

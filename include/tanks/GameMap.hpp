@@ -7,7 +7,8 @@
 #include "tanks/Projectile.hpp"
 #include "tanks/Tank.hpp"
 
-namespace tanks {
+namespace tanks
+{
 
 class GameMap
 {

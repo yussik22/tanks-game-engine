@@ -3,7 +3,8 @@
 #include "tanks/Damageable.hpp"
 #include "tanks/Types.hpp"
 
-namespace tanks {
+namespace tanks
+{
 
 class GameMap;
 class Projectile;

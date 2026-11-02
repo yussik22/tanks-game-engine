@@ -1,6 +1,7 @@
 #pragma once
 
-namespace tanks {
+namespace tanks
+{
 
 struct GridPosition
 {
@@ -15,6 +16,29 @@ enum class Direction
     Down,
     Left
 };
+
+inline GridPosition adjacentPosition(const GridPosition& position, Direction direction)
+{
+    GridPosition next = position;
+
+    switch (direction)
+    {
+    case Direction::Up:
+        next.y -= 1;
+        break;
+    case Direction::Right:
+        next.x += 1;
+        break;
+    case Direction::Down:
+        next.y += 1;
+        break;
+    case Direction::Left:
+        next.x -= 1;
+        break;
+    }
+
+    return next;
+}
 
 enum class GameState
 {

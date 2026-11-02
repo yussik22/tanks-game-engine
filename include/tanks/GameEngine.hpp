@@ -7,7 +7,8 @@
 #include "tanks/GameMap.hpp"
 #include "tanks/Types.hpp"
 
-namespace tanks {
+namespace tanks
+{
 
 class GameEngine
 {
@@ -23,6 +24,7 @@ public:
 private:
     void start();
     void simulateTick();
+    void executeCommand(Tank& tank, const Command& command);
     GameState evaluateOutcome() const;
 
     GameState state = GameState::Ready;
