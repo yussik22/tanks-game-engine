@@ -1,8 +1,7 @@
 # Tanks Game Engine
 
-A C++17 command-line version of an 8-bit-style tanks game for OOP Assignment 3.
-The game engine contains no rendering code. The console renderer reads the engine state,
-so a GUI renderer can be added later without changing the game rules.
+A C++17 8-bit-style tanks game with a console version and an optional SFML
+sprite renderer. Both versions read the same game engine state.
 
 ## Build and run
 
@@ -15,6 +14,17 @@ ctest --test-dir build -C Debug --output-on-failure
 Run `build/tanks_cli` on Linux/macOS or `build/Debug/tanks_cli.exe` on Windows
 with a multi-configuration generator. With a single-configuration Windows
 generator, the executable is `build/tanks_cli.exe`.
+
+For the graphical version, enable SFML when configuring CMake:
+
+```text
+cmake -S . -B build-render -DTANKS_BUILD_RENDERER=ON
+cmake --build build-render --config Release --target tanks_render
+```
+
+On Windows, run `build-render/Release/tanks_render.exe`. CMake downloads SFML
+2.6.2 when needed. The pixel textures are created in code, so no image files
+are needed.
 
 ## Controls
 
@@ -29,6 +39,8 @@ generator, the executable is `build/tanks_cli.exe`.
 
 On Windows, press one key for each action; you do not need to press Enter after it.
 On Linux/macOS, type a command and press Enter.
+In the graphical window, hold WASD to keep moving, use arrow keys or IJKL to
+aim, F or Space to fire, and Esc to quit.
 
 `P` is the player, `B` a bot with 2 HP, `b` a damaged bot with 1 HP,
 `#` a wall with 2 durability, `+` a damaged wall with 1 durability,
@@ -44,8 +56,10 @@ checking collisions in each cell so they cannot pass through a wall or tank.
 `Damageable` gives walls and tanks the same damage contract. A `GameMap`
 owns three layers, and each layer owns its objects with `std::unique_ptr`.
 `GameMap::generate(seed)` is a factory function that returns a complete map.
-The engine has no dependency on `Renderer`; the console renderer reads the
-engine through a const reference. Input parsing also stays outside the engine.
+The engine has no dependency on `Renderer`. The graphical app is split into
+`GameDisplayData` (map objects to console-style symbols and status),
+`PixelTextures` (creates the small images), `SpriteRenderer` (draws them),
+`WindowInput` (keyboard events), and `app/graphics/main.cpp` (window loop).
 
 ## Game rules
 
@@ -53,4 +67,4 @@ Each new battle creates a deterministic 13 x 13 map from a seed. The player
 starts with 3 health, each of three bots with 2 health, and walls with 2
 durability. A shot deals 1 damage. Bots fire when they have a clear row or
 column toward the player and patrol otherwise. The engine updates at a fixed
-0.1-second step and resolves all shots before checking for victory or defeat.
+0.25-second step and resolves all shots before checking for victory or defeat.

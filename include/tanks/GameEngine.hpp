@@ -1,8 +1,8 @@
 #pragma once
 
 #include <cstdint>
-#include <deque>
 #include <memory>
+#include <optional>
 #include "tanks/CollisionSystem.hpp"
 #include "tanks/GameMap.hpp"
 #include "tanks/Types.hpp"
@@ -16,6 +16,7 @@ public:
     GameEngine(std::uint32_t initialSeed);
 
     void handle(const Command& command);
+    void releaseMove();
     void update(float dt);
 
     GameState getState() const;
@@ -31,10 +32,9 @@ private:
     std::unique_ptr<GameMap> map;
     CollisionSystem collisions;
     std::uint32_t nextMapSeed = 0;
-    std::deque<Command> pendingCommands;
-    int maxPendingCommands = 4;
+    std::optional<Command> pendingMove;
+    bool playerMoveReady = true;
     float accumulator = 0.0f;
-    float fixedTickSeconds = 0.1f;
 };
 
 } // namespace tanks

@@ -1,5 +1,6 @@
 #include "tanks/GameEngine.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 #include <utility>
@@ -24,16 +25,49 @@ void GameEngine::handle(const Command& command)
         }
         break;
     case GameState::Running:
+    {
+        PlayerTank* player = map->getPlayer();
+
+        if (player == nullptr)
+        {
+            break;
+        }
+
         switch (command.kind)
         {
         case CommandKind::Move:
+            if (playerMoveReady)
+            {
+                executeCommand(*player, command);
+                playerMoveReady = false;
+
+                for (Projectile* shot : map->getActiveProjectiles())
+                {
+                    GridPosition shotPosition = shot->getPosition();
+                    GridPosition playerPosition = player->getPosition();
+
+                    if (shotPosition.x == playerPosition.x &&
+                        shotPosition.y == playerPosition.y)
+                    {
+                        collisions.resolveProjectileStep(*shot, *map);
+                    }
+                }
+
+                state = evaluateOutcome();
+                if (state != GameState::Running)
+                {
+                    pendingMove.reset();
+                }
+                map->removeInactive();
+            }
+            else
+            {
+                pendingMove = command;
+            }
+            break;
         case CommandKind::Turn:
         case CommandKind::Fire:
-            if (pendingCommands.size() >= static_cast<std::size_t>(maxPendingCommands))
-            {
-                pendingCommands.pop_front();
-            }
-            pendingCommands.push_back(command);
+            executeCommand(*player, command);
             break;
         case CommandKind::Start:
         case CommandKind::AimAndFire:
@@ -41,6 +75,7 @@ void GameEngine::handle(const Command& command)
             break;
         }
         break;
+    }
     case GameState::Won:
     case GameState::Lost:
         if (command.kind == CommandKind::Restart)
@@ -51,6 +86,11 @@ void GameEngine::handle(const Command& command)
     }
 }
 
+void GameEngine::releaseMove()
+{
+    pendingMove.reset();
+}
+
 void GameEngine::update(float dt)
 {
     if (state != GameState::Running || dt <= 0.0f || !std::isfinite(dt))
@@ -58,12 +98,13 @@ void GameEngine::update(float dt)
         return;
     }
 
-    accumulator += dt;
+    const float maxFrameTime = 3.0f * worldTickSeconds;
+    accumulator = std::min(accumulator + dt, maxFrameTime);
 
     while (state == GameState::Running &&
-           accumulator + 0.000001f >= fixedTickSeconds)
+           accumulator + 0.000001f >= worldTickSeconds)
     {
-        accumulator -= fixedTickSeconds;
+        accumulator -= worldTickSeconds;
 
         if (accumulator < 0.0f)
         {
@@ -86,9 +127,13 @@ const GameMap& GameEngine::getMap() const
 
 void GameEngine::start()
 {
-    map = GameMap::generate(nextMapSeed);
-    ++nextMapSeed;
-    pendingCommands.clear();
+    if (state != GameState::Ready)
+    {
+        map = GameMap::generate(nextMapSeed);
+        ++nextMapSeed;
+    }
+    pendingMove.reset();
+    playerMoveReady = true;
     accumulator = 0.0f;
     state = GameState::Running;
 }
@@ -100,24 +145,27 @@ void GameEngine::simulateTick()
     if (player == nullptr)
     {
         state = GameState::Lost;
-        pendingCommands.clear();
+        pendingMove.reset();
         map->removeInactive();
         return;
     }
 
-    player->updateCooldown(fixedTickSeconds);
+    player->updateCooldown(worldTickSeconds);
     std::vector<BotTank*> bots = map->getBots();
 
     for (BotTank* bot : bots)
     {
-        bot->updateCooldown(fixedTickSeconds);
+        bot->updateCooldown(worldTickSeconds);
     }
 
-    if (!pendingCommands.empty())
+    playerMoveReady = true;
+
+    if (pendingMove)
     {
-        Command command = pendingCommands.front();
-        pendingCommands.pop_front();
+        Command command = *pendingMove;
+        pendingMove.reset();
         executeCommand(*player, command);
+        playerMoveReady = false;
     }
 
     for (BotTank* bot : bots)
@@ -134,6 +182,11 @@ void GameEngine::simulateTick()
 
     for (Projectile* shot : shots)
     {
+        collisions.resolveProjectileStep(*shot, *map);
+    }
+
+    for (Projectile* shot : shots)
+    {
         for (int step = 0; step < projectileStepsPerTick && shot->isActive(); ++step)
         {
             shot->step();
@@ -145,7 +198,7 @@ void GameEngine::simulateTick()
 
     if (state != GameState::Running)
     {
-        pendingCommands.clear();
+        pendingMove.reset();
     }
 
     map->removeInactive();

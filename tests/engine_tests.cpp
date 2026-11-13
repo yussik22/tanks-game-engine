@@ -486,7 +486,7 @@ void testPointBlankWallShot()
           "Expected adjacent starting wall is missing");
     check(player->canFire(), "Starting player cannot fire");
     engine.handle({CommandKind::Fire});
-    engine.update(0.1f);
+    engine.update(worldTickSeconds);
     check(wall->getDurability() == 1 && wall->isActive(),
           "Point-blank shot did not damage wall");
     check(!player->canFire(), "Player did not enter reload after firing");
@@ -497,7 +497,7 @@ void testProjectileSpeed()
     GameEngine engine(42);
     engine.handle({CommandKind::Start});
     engine.handle({CommandKind::Move, Direction::Right});
-    engine.update(0.1f);
+    engine.update(worldTickSeconds);
 
     const GameMap& map = engine.getMap();
     const PlayerTank* player = map.getPlayer();
@@ -506,7 +506,7 @@ void testProjectileSpeed()
           "Tank did not move exactly one cell in a tick");
 
     engine.handle({CommandKind::Fire});
-    engine.update(0.1f);
+    engine.update(worldTickSeconds);
     bool foundAtSecondCell = false;
 
     for (const GameObject* object : map.getWallObjectsAt({9, 11}))
@@ -521,51 +521,114 @@ void testProjectileSpeed()
     check(foundAtSecondCell, "Projectile did not move two cells in one tick");
 }
 
+void testReadyMapAndProjectileEntry()
+{
+    GameEngine engine(42);
+    const GameMap* readyMap = &engine.getMap();
+    engine.handle({CommandKind::Start});
+    check(&engine.getMap() == readyMap,
+          "Starting changed the map shown on the Ready screen");
+
+    GameMap& map = const_cast<GameMap&>(engine.getMap());
+    PlayerTank* player = map.getPlayer();
+    check(player != nullptr && !map.getBots().empty(),
+          "Projectile entry test has no tanks");
+    Projectile* shot = map.addProjectile(std::make_unique<Projectile>(
+        GridPosition{7, 11}, Direction::Right, 1, map.getBots()[0]->getId()));
+    check(shot != nullptr, "Could not place incoming projectile");
+
+    engine.handle({CommandKind::Move, Direction::Right});
+    check(player->getPosition().x == 7 && player->getHealth() == 2,
+          "Walking into a projectile did not damage the player");
+}
+
 void testEngineTimingAndQueue()
 {
     GameEngine timing(42);
     timing.handle({CommandKind::Start});
     timing.handle({CommandKind::Move, Direction::Right});
-    timing.update(0.05f);
-    check(timing.getMap().getPlayer()->getPosition().x == 6,
-          "Half tick moved player early");
-    timing.update(0.05f);
     check(timing.getMap().getPlayer()->getPosition().x == 7,
-          "Two half ticks did not run one tick");
+          "First movement command waited for a world tick");
+    timing.handle({CommandKind::Move, Direction::Right});
+    timing.update(worldTickSeconds / 2.0f);
+    check(timing.getMap().getPlayer()->getPosition().x == 7,
+          "Half tick applied pending movement early");
+    timing.update(worldTickSeconds / 2.0f);
+    check(timing.getMap().getPlayer()->getPosition().x == 8,
+          "Two half ticks did not apply pending movement");
 
     timing.handle({CommandKind::Move, Direction::Right});
     timing.update(-1.0f);
     timing.update(std::numeric_limits<float>::quiet_NaN());
-    check(timing.getMap().getPlayer()->getPosition().x == 7,
-          "Invalid elapsed time advanced the game");
-    timing.update(0.1f);
     check(timing.getMap().getPlayer()->getPosition().x == 8,
+          "Invalid elapsed time advanced the game");
+    timing.update(worldTickSeconds);
+    check(timing.getMap().getPlayer()->getPosition().x == 9,
           "Valid elapsed time did not advance the game");
 
     GameEngine queued(42);
     queued.handle({CommandKind::Start});
-    queued.handle({CommandKind::Turn, Direction::Left});
-    queued.handle({CommandKind::Turn, Direction::Right});
-    queued.handle({CommandKind::Turn, Direction::Down});
-    queued.handle({CommandKind::Turn, Direction::Up});
-    queued.handle({CommandKind::Turn, Direction::Right});
-    queued.update(0.1f);
-    check(queued.getMap().getPlayer()->getFacing() == Direction::Right,
-          "Full command queue did not drop the oldest command");
+    queued.handle({CommandKind::Move, Direction::Right});
+    queued.handle({CommandKind::Move, Direction::Left});
+    queued.handle({CommandKind::Move, Direction::Right});
+    queued.handle({CommandKind::Move, Direction::Left});
+    queued.update(worldTickSeconds);
+    check(queued.getMap().getPlayer()->getPosition().x == 6,
+          "Latest movement command did not replace older input");
+
+    GameEngine released(42);
+    released.handle({CommandKind::Start});
+    released.handle({CommandKind::Move, Direction::Right});
+    released.handle({CommandKind::Move, Direction::Right});
+    released.releaseMove();
+    released.update(worldTickSeconds);
+    check(released.getMap().getPlayer()->getPosition().x == 7,
+          "Released movement key caused another step");
+
+    GameEngine turning(42);
+    turning.handle({CommandKind::Start});
+    turning.handle({CommandKind::Turn, Direction::Right});
+    check(turning.getMap().getPlayer()->getFacing() == Direction::Right,
+          "Turret turn waited for a world tick");
 
     GameEngine batched(42);
     batched.handle({CommandKind::Start});
-    batched.handle({CommandKind::Turn, Direction::Right});
-    batched.handle({CommandKind::Turn, Direction::Down});
-    batched.handle({CommandKind::Turn, Direction::Left});
-    batched.update(0.3f);
-    check(batched.getMap().getPlayer()->getFacing() == Direction::Left,
-          "One update did not run three fixed ticks");
+    batched.handle({CommandKind::Fire});
+    check(!batched.getMap().getPlayer()->canFire(),
+          "Fire command waited for a world tick");
+    batched.update(3.0f * worldTickSeconds);
+    check(batched.getMap().getPlayer()->canFire(),
+          "One update did not run three world ticks");
+
+    GameEngine longFrame(42);
+    GameEngine reference(42);
+    longFrame.handle({CommandKind::Start});
+    reference.handle({CommandKind::Start});
+    longFrame.update(3.0f);
+    reference.update(3.0f * worldTickSeconds);
+    const PlayerTank* longFramePlayer = longFrame.getMap().getPlayer();
+    const PlayerTank* referencePlayer = reference.getMap().getPlayer();
+    check(longFramePlayer != nullptr && referencePlayer != nullptr &&
+          longFramePlayer->getHealth() == referencePlayer->getHealth(),
+          "Long frame ran more than three world ticks");
+    std::vector<const BotTank*> longFrameBots = longFrame.getMap().getBots();
+    std::vector<const BotTank*> referenceBots = reference.getMap().getBots();
+    check(longFrameBots.size() == referenceBots.size(),
+          "Long frame changed the number of bots");
+
+    for (std::size_t index = 0; index < longFrameBots.size(); ++index)
+    {
+        GridPosition actual = longFrameBots[index]->getPosition();
+        GridPosition expected = referenceBots[index]->getPosition();
+        check(actual.x == expected.x && actual.y == expected.y &&
+              longFrameBots[index]->getFacing() == referenceBots[index]->getFacing(),
+              "Long frame advanced bot actions past three world ticks");
+    }
 
     GameEngine ignored(42);
     ignored.handle({CommandKind::Start});
     ignored.handle({CommandKind::AimAndFire, Direction::Right});
-    ignored.update(0.1f);
+    ignored.update(worldTickSeconds);
     check(ignored.getMap().getPlayer()->getFacing() == Direction::Up,
           "Player was allowed to send bot-only AimAndFire command");
 }
@@ -592,18 +655,18 @@ void testWinAndSimultaneousLoss()
 
     winEngine.handle({CommandKind::Turn, Direction::Right});
     winEngine.handle({CommandKind::Move, Direction::Left});
-    winEngine.update(0.1f);
+    winEngine.update(worldTickSeconds);
     check(winEngine.getState() == GameState::Won,
           "Defeating all bots did not win the battle");
     winEngine.handle({CommandKind::Move, Direction::Right});
-    winEngine.update(0.1f);
+    winEngine.update(worldTickSeconds);
     check(winEngine.getState() == GameState::Won,
           "Gameplay command changed Won state");
     winEngine.handle({CommandKind::Restart});
     check(winEngine.getState() == GameState::Running &&
           winEngine.getMap().getBots().size() == 3,
           "Restart after win did not create a new battle");
-    winEngine.update(0.1f);
+    winEngine.update(worldTickSeconds);
     check(winEngine.getMap().getPlayer()->getPosition().x == 6,
           "Restart kept an old queued command");
 
@@ -632,7 +695,7 @@ void testWinAndSimultaneousLoss()
         finalBot->getId()));
     check(playerShot != nullptr && botShot != nullptr,
           "Could not prepare simultaneous shots");
-    lossEngine.update(0.1f);
+    lossEngine.update(worldTickSeconds);
     check(lossEngine.getState() == GameState::Lost,
           "Player death did not take priority over final bot death");
     check(lossMap.getPlayer() == nullptr && lossMap.getBots().empty(),
@@ -658,7 +721,7 @@ void testBattleStress()
         for (int tick = 0; tick < 80 && engine.getState() == GameState::Running; ++tick)
         {
             engine.handle(actions[(seed + static_cast<std::uint32_t>(tick)) % 6]);
-            engine.update(0.1f);
+            engine.update(worldTickSeconds);
             const GameMap& map = engine.getMap();
             std::set<std::uint32_t> ids;
 
@@ -702,7 +765,7 @@ void testInputAndEngineState()
     GameEngine engine(42);
     check(engine.getState() == GameState::Ready, "Engine did not start Ready");
     engine.handle({CommandKind::Move, Direction::Right});
-    engine.update(0.1f);
+    engine.update(worldTickSeconds);
     check(engine.getState() == GameState::Ready,
           "Move command started battle from Ready");
     engine.handle({CommandKind::Start});
@@ -711,18 +774,18 @@ void testInputAndEngineState()
     engine.handle({CommandKind::Restart});
     check(engine.getState() == GameState::Running,
           "Restart changed a running battle");
-    engine.update(0.1f);
+    engine.update(worldTickSeconds);
     check(engine.getState() == GameState::Running,
           "Battle ended after one tick");
 
     for (int tick = 0; tick < 100 && engine.getState() == GameState::Running; ++tick)
     {
-        engine.update(0.1f);
+        engine.update(worldTickSeconds);
     }
 
     check(engine.getState() == GameState::Lost,
           "Bot attacks did not reach the loss state");
-    engine.update(0.1f);
+    engine.update(worldTickSeconds);
     check(engine.getState() == GameState::Lost,
           "Terminal state advanced another battle tick");
     engine.handle({CommandKind::Restart});
@@ -747,6 +810,7 @@ int main()
         testBotSightBlockedByWall();
         testPointBlankWallShot();
         testProjectileSpeed();
+        testReadyMapAndProjectileEntry();
         testEngineTimingAndQueue();
         testWinAndSimultaneousLoss();
         testInputAndEngineState();

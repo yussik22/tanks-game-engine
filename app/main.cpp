@@ -156,7 +156,7 @@ int main()
 
         bool started = previousState != GameState::Running &&
                        engine.getState() == GameState::Running;
-        engine.update(started ? 0.0f : 0.1f);
+        engine.update(started ? 0.0f : worldTickSeconds);
         renderer.render(engine);
     }
 

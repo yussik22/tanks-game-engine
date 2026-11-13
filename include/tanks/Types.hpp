@@ -3,6 +3,8 @@
 namespace tanks
 {
 
+inline constexpr float worldTickSeconds = 0.25f;
+
 struct GridPosition
 {
     int x = 0;
